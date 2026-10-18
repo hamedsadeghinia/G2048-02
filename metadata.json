@@ -1,0 +1,6 @@
+{
+  "name": "Timed 2048 - Cognitive Strategy",
+  "description": "An intense cognitive strategy evolution of the classic 2048 puzzle game featuring draining visual tile timers, decay halving, and an inactivity penalty.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,505 @@
+<!-- Screen reader live announcer -->
+<div class="sr-only" aria-live="polite" aria-atomic="true">
+  {{ game.announcement() }}
+</div>
+
+<main class="min-h-screen flex flex-col items-center justify-between px-3 py-4 sm:py-6 max-w-xl mx-auto">
+  <!-- Top Bar & Header Section -->
+  <header class="w-full flex flex-col gap-3">
+    <!-- Row 1: Brand title, help, sound, and scores -->
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#776e65]">
+          2048
+        </h1>
+        <div class="flex flex-col">
+          <span class="text-xs uppercase font-bold text-[#8f7a66] tracking-wider leading-none">
+            Timed
+          </span>
+          <span class="text-[10px] text-[#9f8b77] leading-tight font-medium">
+            Cognitive Strategy
+          </span>
+        </div>
+      </div>
+
+      <!-- Action Utilities & Scores -->
+      <div class="flex items-center gap-2">
+        <!-- Sound Mute/Unmute Toggle -->
+        <button
+          type="button"
+          (click)="sound.toggleMute()"
+          [attr.aria-label]="sound.isMuted() ? 'Unmute sounds' : 'Mute sounds'"
+          class="w-9 h-9 rounded-lg bg-[#bbada0] hover:bg-[#8f7a66] text-white flex items-center justify-center transition-colors shadow-xs active:scale-95"
+          title="Sound Effects"
+        >
+          <mat-icon class="text-xl">
+            @if (sound.isMuted()) {
+              volume_off
+            } @else {
+              volume_up
+            }
+          </mat-icon>
+        </button>
+
+        <!-- Help Modal Button -->
+        <button
+          type="button"
+          (click)="game.toggleHelp()"
+          aria-label="Game rules and guide"
+          class="w-9 h-9 rounded-lg bg-[#bbada0] hover:bg-[#8f7a66] text-white font-bold text-lg flex items-center justify-center transition-colors shadow-xs active:scale-95"
+          title="How to Play"
+        >
+          <mat-icon class="text-xl">help_outline</mat-icon>
+        </button>
+
+        <!-- Current Score Container -->
+        <div class="relative bg-[#bbada0] px-3 py-1.5 rounded-lg text-center min-w-[70px] shadow-xs">
+          <div class="text-[10px] uppercase font-bold text-[#eee4da] tracking-wide leading-none">
+            Score
+          </div>
+          <div class="text-base sm:text-lg font-bold text-white tabular-nums leading-snug">
+            {{ game.score() }}
+          </div>
+
+          <!-- Floating score additions -->
+          @for (item of game.floatingScores(); track item.id) {
+            <span class="absolute -top-3 right-2 text-xs font-bold text-[#8f7a66] bg-amber-100 px-1.5 py-0.5 rounded shadow-sm score-floater pointer-events-none">
+              +{{ item.value }}
+            </span>
+          }
+        </div>
+
+        <!-- Best Score Container -->
+        <div class="bg-[#bbada0] px-3 py-1.5 rounded-lg text-center min-w-[70px] shadow-xs">
+          <div class="text-[10px] uppercase font-bold text-[#eee4da] tracking-wide leading-none">
+            Best
+          </div>
+          <div class="text-base sm:text-lg font-bold text-white tabular-nums leading-snug">
+            {{ game.bestScore() }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Inactivity 3-Second Threat Meter (Idle Penalty) -->
+    <div class="w-full bg-[#eee4da] rounded-xl p-2.5 flex flex-col gap-1.5 shadow-xs border border-[#e5dbc9]">
+      <div class="flex items-center justify-between text-xs font-semibold text-[#776e65]">
+        <div class="flex items-center gap-1.5">
+          <mat-icon class="text-base text-amber-600">timer</mat-icon>
+          <span>Inactivity Penalty (3s Auto-Spawn)</span>
+        </div>
+        <span class="tabular-nums font-mono text-[11px] font-bold" [class.text-red-600]="game.idleProgress() > 0.7">
+          @if (game.idleProgress() > 0.8) {
+            Spawn Imminent: {{ getRemainingIdleSeconds() }}s
+          } @else {
+            Next tile in {{ getRemainingIdleSeconds() }}s
+          }
+        </span>
+      </div>
+
+      <!-- Linear Countdown Bar -->
+      <div class="w-full h-2 bg-[#dcd0c2] rounded-full overflow-hidden">
+        <div
+          class="h-full transition-all duration-75 rounded-full"
+          [style.width.%]="game.idleProgress() * 100"
+          [class.bg-amber-500]="game.idleProgress() <= 0.65"
+          [class.bg-orange-500]="game.idleProgress() > 0.65 && game.idleProgress() <= 0.85"
+          [class.bg-red-600]="game.idleProgress() > 0.85"
+        ></div>
+      </div>
+    </div>
+
+    <!-- Row 3: Action Controls (Pause, Restart, Tile Timers Indicator) -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-1.5 text-xs text-[#8f7a66] font-medium">
+        <mat-icon class="text-sm">hourglass_bottom</mat-icon>
+        <span>Active Timers:</span>
+        <span class="font-bold text-[#776e65] tabular-nums bg-[#e8ded1] px-1.5 py-0.5 rounded">
+          {{ game.activeTimerCount() }}
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          (click)="game.togglePause()"
+          class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all shadow-xs active:scale-95"
+          [class.bg-[#edc22e]]="!game.isPaused()"
+          [class.text-white]="!game.isPaused()"
+          [class.bg-[#8f7a66]]="game.isPaused()"
+          [class.text-white]="game.isPaused()"
+        >
+          <mat-icon class="text-sm">
+            @if (game.isPaused()) {
+              play_arrow
+            } @else {
+              pause
+            }
+          </mat-icon>
+          <span>{{ game.isPaused() ? 'Resume' : 'Pause' }}</span>
+        </button>
+
+        <button
+          type="button"
+          (click)="game.restart()"
+          class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase bg-[#8f7a66] hover:bg-[#9f8b77] text-white transition-all shadow-xs active:scale-95"
+        >
+          <mat-icon class="text-sm">refresh</mat-icon>
+          <span>Restart</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Game Board Section -->
+  <section
+    class="my-auto flex flex-col items-center justify-center w-full"
+    aria-label="2048 Game Board Viewport"
+  >
+    <div
+      #boardElement
+      class="relative bg-[#bbada0] rounded-xl shadow-md touch-none select-none overflow-hidden"
+      [style.width.px]="boardSizePx()"
+      [style.height.px]="boardSizePx()"
+      [style.padding.px]="gapSizePx()"
+      (touchstart)="onTouchStart($event)"
+      (touchmove)="onTouchMove($event)"
+      (touchend)="onTouchEnd($event)"
+      role="region"
+      aria-label="Timed 2048 Grid"
+    >
+      <!-- Background 4x4 Empty Grid Cells -->
+      <div
+        class="w-full h-full grid grid-cols-4 grid-rows-4"
+        [style.gap.px]="gapSizePx()"
+      >
+        @for (i of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]; track i) {
+          <div class="bg-[#cdc1b4] rounded-lg w-full h-full"></div>
+        }
+      </div>
+
+      <!-- Dynamic Active Tiles Layer -->
+      @for (tile of tiles(); track tile.id) {
+        <div
+          class="absolute rounded-lg transition-all duration-150 ease-in-out flex flex-col items-center justify-center font-extrabold shadow-sm"
+          [class.tile-anim-appear]="tile.isNew"
+          [class.tile-anim-merged]="tile.isMerged"
+          [class.tile-shaking]="isTileCritical(tile)"
+          [style.top.px]="getTileTopPx(tile.row)"
+          [style.left.px]="getTileLeftPx(tile.col)"
+          [style.width.px]="tileSizePx()"
+          [style.height.px]="tileSizePx()"
+          [style.background]="getTileBackground(tile)"
+          [style.color]="getTileTextColor(tile.value)"
+          [style.--shake-x]="getShakeX(tile)"
+          [style.--shake-rot]="getShakeRot(tile)"
+        >
+          <!-- Tile Value -->
+          <span
+            class="leading-none transition-transform"
+            [style.font-size.px]="tileSizePx() * (tile.value >= 1024 ? 0.28 : (tile.value >= 128 ? 0.35 : 0.44))"
+          >
+            {{ tile.value }}
+          </span>
+
+          <!-- Countdown Label for tiles >= 4 -->
+          @if (tile.timer !== null) {
+            <span
+              class="text-[10px] font-mono font-semibold opacity-90 leading-none mt-1 tracking-tight"
+              [class.text-red-700]="isTileCritical(tile)"
+              [class.animate-pulse]="isTileCritical(tile)"
+            >
+              {{ formatTimer(tile.timer) }}
+            </span>
+          }
+        </div>
+      }
+
+      <!-- Pause Overlay (Full opacity per GDD [RESP-03] to conceal tiles) -->
+      @if (game.isPaused()) {
+        <div
+          class="absolute inset-0 bg-[#eee4da] flex flex-col items-center justify-center z-50 rounded-xl p-6 text-center animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Game Paused"
+        >
+          <mat-icon class="text-5xl text-[#8f7a66] mb-2">pause_circle_filled</mat-icon>
+          <h2 class="text-2xl font-black text-[#776e65] mb-1">Game Paused</h2>
+          <p class="text-xs text-[#8f7a66] max-w-xs mb-6 font-medium">
+            Tiles are hidden to maintain cognitive challenge integrity. Timers are frozen.
+          </p>
+          <button
+            type="button"
+            (click)="game.togglePause()"
+            class="px-6 py-2.5 bg-[#edc22e] hover:bg-[#f3d04c] text-white font-bold rounded-lg uppercase tracking-wider text-sm transition-transform active:scale-95 shadow-md flex items-center gap-2"
+          >
+            <mat-icon class="text-base">play_arrow</mat-icon>
+            <span>Resume Game</span>
+          </button>
+        </div>
+      }
+
+      <!-- Game Over Overlay -->
+      @if (game.isGameOver()) {
+        <div
+          class="absolute inset-0 bg-[#faf8ef]/90 flex flex-col items-center justify-center z-50 rounded-xl p-6 text-center animate-fade-in backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Game Over"
+        >
+          <mat-icon class="text-5xl text-[#8f7a66] mb-2">sentiment_very_dissatisfied</mat-icon>
+          <h2 class="text-3xl font-black text-[#776e65] mb-1">Game Over!</h2>
+          <p class="text-xs text-[#8f7a66] max-w-xs mb-4">
+            No valid moves remaining and all active tile timers have concluded.
+          </p>
+          <div class="bg-[#bbada0] px-4 py-2 rounded-lg text-white mb-6">
+            <span class="text-xs text-[#eee4da] uppercase font-semibold">Final Score:</span>
+            <div class="text-2xl font-black">{{ game.score() }}</div>
+          </div>
+          <button
+            type="button"
+            (click)="game.restart()"
+            class="px-6 py-2.5 bg-[#8f7a66] hover:bg-[#9f8b77] text-white font-bold rounded-lg uppercase tracking-wider text-sm transition-transform active:scale-95 shadow-md flex items-center gap-2"
+          >
+            <mat-icon class="text-base">replay</mat-icon>
+            <span>Try Again</span>
+          </button>
+        </div>
+      }
+
+      <!-- Victory Overlay (Reached 2048) -->
+      @if (game.isWon() && !game.keepPlayingAfterWin()) {
+        <div
+          class="absolute inset-0 bg-[#faf8ef]/95 flex flex-col items-center justify-center z-50 rounded-xl p-6 text-center animate-fade-in backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Victory Achieved"
+        >
+          <mat-icon class="text-5xl text-amber-500 mb-2">military_tech</mat-icon>
+          <h2 class="text-3xl font-black text-[#edc22e] mb-1">You Win!</h2>
+          <p class="text-xs text-[#776e65] max-w-xs mb-4 font-medium">
+            Incredible! You crafted the 2048 tile while balancing the relentless decay timers!
+          </p>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              (click)="game.keepPlaying()"
+              class="px-4 py-2.5 bg-[#edc22e] hover:bg-[#f3d04c] text-white font-bold rounded-lg uppercase tracking-wider text-xs transition-transform active:scale-95 shadow-md flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">fast_forward</mat-icon>
+              <span>Keep Going</span>
+            </button>
+            <button
+              type="button"
+              (click)="game.restart()"
+              class="px-4 py-2.5 bg-[#8f7a66] hover:bg-[#9f8b77] text-white font-bold rounded-lg uppercase tracking-wider text-xs transition-transform active:scale-95 shadow-md flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">replay</mat-icon>
+              <span>Restart</span>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Footer Controls & Hints -->
+  <footer class="w-full text-center text-xs text-[#8f7a66] font-medium pt-3 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-[#dcd3cb]/60 mt-3">
+    <div class="flex items-center gap-1 text-[11px]">
+      <mat-icon class="text-sm">keyboard</mat-icon>
+      <span>Arrows / WASD / Vim (HJKL) · Mobile Swipe</span>
+    </div>
+    <div class="text-[11px] text-[#9f8b77]">
+      Decay halving: Values ≥ 4 lose color over time
+    </div>
+  </footer>
+</main>
+
+<!-- Bilingual Modal: How to Play (Persian & English) -->
+@if (game.isHelpOpen()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+    <!-- Backdrop button for click-outside dismissal -->
+    <button
+      type="button"
+      class="fixed inset-0 w-full h-full bg-black/60 backdrop-blur-xs border-0 cursor-default"
+      (click)="game.toggleHelp()"
+      aria-label="Close dialog background"
+      tabindex="-1"
+    ></button>
+
+    <!-- Dialog container -->
+    <div
+      class="bg-[#faf8ef] w-full max-w-xl max-h-[88vh] rounded-2xl shadow-2xl p-5 sm:p-6 overflow-y-auto flex flex-col gap-4 text-[#776e65] relative z-10"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="help-modal-heading"
+    >
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-[#e5dbc9] pb-3">
+        <div class="flex items-center gap-2">
+          <mat-icon class="text-amber-600">psychology</mat-icon>
+          <h2 id="help-modal-heading" class="text-xl font-black text-[#776e65]">
+            {{ activeTab() === 'fa' ? 'راهنمای بازی ۲۰۴۸ زمان‌دار' : 'Timed 2048 - Game Guide' }}
+          </h2>
+        </div>
+
+        <!-- Language Switcher Tabs -->
+        <div class="flex items-center gap-1 bg-[#eee4da] p-1 rounded-lg">
+          <button
+            type="button"
+            (click)="activeTab.set('fa')"
+            class="px-2.5 py-1 text-xs font-bold rounded-md transition-all"
+            [class.bg-[#8f7a66]]="activeTab() === 'fa'"
+            [class.text-white]="activeTab() === 'fa'"
+            [class.text-[#776e65]]="activeTab() !== 'fa'"
+          >
+            فارسی
+          </button>
+          <button
+            type="button"
+            (click)="activeTab.set('en')"
+            class="px-2.5 py-1 text-xs font-bold rounded-md transition-all"
+            [class.bg-[#8f7a66]]="activeTab() === 'en'"
+            [class.text-white]="activeTab() === 'en'"
+            [class.text-[#776e65]]="activeTab() !== 'en'"
+          >
+            English
+          </button>
+
+          <!-- Close Icon -->
+          <button
+            type="button"
+            (click)="game.toggleHelp()"
+            aria-label="Close guide modal"
+            class="w-7 h-7 rounded-md text-[#8f7a66] hover:bg-[#dcd0c2] flex items-center justify-center transition-colors ml-1"
+          >
+            <mat-icon class="text-lg">close</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Persian Content (RTL) -->
+      @if (activeTab() === 'fa') {
+        <div class="persian-text flex flex-col gap-4 text-right" dir="rtl">
+          <p class="text-sm leading-relaxed text-[#776e65] font-medium">
+            به بازی <strong>«۲۰۴۸ زمان‌دار» (Timed 2048)</strong> خوش آمدید! این بازی تکامل‌یافته‌ی استراتژیک بازی کلاسیک ۲۰۴۸ است که مهارت‌های سرعت تفکر، حافظه کاری و مدیریت فشار زمان شما را به چالش می‌کشد.
+          </p>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-amber-600">swipe</mat-icon>
+              <span>۱. نحوه‌ی کنترل و ادغام</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              با استفاده از کلیدهای جهت‌نما، کلیدهای <strong>WASD</strong>، کلیدهای سبک ویم (H, J, K, L) یا کشیدن انگشت (سوایپ) روی صفحه در موبایل، کاشی‌ها را حرکت دهید. دو کاشی هم‌مقدار با برخورد ادغام شده و کاشی با ارزش دوبرابر تولید می‌کنند.
+            </p>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-amber-600">hourglass_top</mat-icon>
+              <span>۲. زمان‌سنج بصری و قانون افت ارزش (Decay Halving)</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              تمام کاشی‌های با ارزش <strong>۴ یا بالاتر</strong> دارای یک شمارشگر معکوس هستند. این زمان مانند آب داخل یک لیوان، به شکل تخلیه شدن رنگ از بالا به پایین نمایش داده می‌شود:
+            </p>
+            <ul class="list-disc list-inside text-xs leading-relaxed space-y-1 text-[#655c54]">
+              <li><strong>افت ارزش:</strong> با اتمام زمان، کاشی حذف نمی‌شود؛ بلکه عدد آن <strong>نصف</strong> می‌گردد!</li>
+              <li>اگر عدد نصف‌شده هم‌چنان ۴ یا بیشتر باشد، ۶۰٪ زمانِ جدید دریافت کرده و به تخلیه ادامه می‌دهد.</li>
+              <li>اگر عدد کاشی به ۲ برسد، تایمر متوقف شده و کاشی دائمی می‌شود تا زمانی که ادغام گردد.</li>
+              <li><strong>لرزش هشدار:</strong> در ۳ ثانیه‌ی پایانی، کاشی به نشانه‌ی خطر شروع به لرزیدن می‌کند!</li>
+            </ul>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-red-600">alarm</mat-icon>
+              <span>۳. جریمه‌ی بی‌حرکتی (قانون ۳ ثانیه)</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              اگر به مدت <strong>۳ ثانیه</strong> هیچ حرکت معتبری انجام ندهید، یک کاشی جدید به صورت خودکار روی تخته ظاهر می‌شود و فضای بازی را فشرده‌تر می‌کند. نوار هشدار بالای صفحه زمان باقی‌مانده تا جریمه را به شما نشان می‌دهد!
+            </p>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-emerald-600">military_tech</mat-icon>
+              <span>۴. راهبرد پیروزی و پایان بازی</span>
+            </h3>
+            <ul class="list-disc list-inside text-xs leading-relaxed space-y-1 text-[#655c54]">
+              <li>هر کاشی بزرگ‌تر، زمان ظرفیت بیشتری دارد (مثلاً کاشی ۶۴ ثانیه‌های بیشتری دارد).</li>
+              <li>با ادغام کاشی‌ها، زمان آن‌ها تجمیع شده و فرصت بقا افزایش می‌یابد.</li>
+              <li>حتی اگر تخته پر شود، تا وقتی کاشی دارای تایمر وجود دارد بازی پایان نمی‌یابد؛ زیرا با نصف شدن مقدارها، راه حرکات جدید باز خواهد شد!</li>
+            </ul>
+          </div>
+        </div>
+      } @else {
+        <!-- English Content (LTR) -->
+        <div class="flex flex-col gap-4 text-left" dir="ltr" lang="en">
+          <p class="text-sm leading-relaxed text-[#776e65] font-medium">
+            Welcome to <strong>Timed 2048 - Cognitive Strategy</strong>! A high-stakes evolution of classic 2048 where spatial planning collides with real-time visual countdown pressure.
+          </p>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-amber-600">swipe</mat-icon>
+              <span>1. Controls & Merging</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              Use <strong>Arrow Keys</strong>, <strong>WASD</strong>, Vim shortcuts (<strong>HJKL</strong>), or <strong>touch swipe</strong> on mobile. Matching tiles collide and merge into double their value.
+            </p>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-amber-600">hourglass_top</mat-icon>
+              <span>2. Visual Timers & Decay Halving</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              All tiles with value <strong>≥ 4</strong> feature a draining timer that empties like a glass of liquid from top to bottom:
+            </p>
+            <ul class="list-disc list-inside text-xs leading-relaxed space-y-1 text-[#655c54]">
+              <li><strong>Halving:</strong> When a timer hits zero, the tile is NOT deleted; its value is <strong>cut in half</strong>!</li>
+              <li>If the new value is still ≥ 4, it receives 60% of the new tier's capacity and continues draining.</li>
+              <li>Tiles decaying to 2 lose their timer and become permanent until merged.</li>
+              <li><strong>Critical Shake:</strong> In the final 3 seconds, the tile visibly shakes as a danger alert.</li>
+            </ul>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-red-600">alarm</mat-icon>
+              <span>3. Inactivity Penalty (3-Second Rule)</span>
+            </h3>
+            <p class="text-xs leading-relaxed">
+              If <strong>3 seconds</strong> pass without a valid move, a new tile automatically spawns on an open grid cell, increasing board congestion. Monitor the top meter to stay ahead!
+            </p>
+          </div>
+
+          <div class="bg-[#eee4da]/60 p-3.5 rounded-xl border border-[#e5dbc9] flex flex-col gap-2">
+            <h3 class="font-bold text-sm text-[#8f7a66] flex items-center gap-1.5">
+              <mat-icon class="text-base text-emerald-600">military_tech</mat-icon>
+              <span>4. Victory & Endgame Resilience</span>
+            </h3>
+            <ul class="list-disc list-inside text-xs leading-relaxed space-y-1 text-[#655c54]">
+              <li>Higher value tiles carry larger base timer reserves (e.g. 64 has 40s, 2048 has 226s).</li>
+              <li>Merging pools leftover timers together with a bonus boost.</li>
+              <li>Game Over only occurs when no valid moves exist AND all timers have expired. Decay can save you on a locked board!</li>
+            </ul>
+          </div>
+        </div>
+      }
+
+      <!-- Bottom Dismiss Button -->
+      <div class="pt-2 border-t border-[#e5dbc9] flex justify-end">
+        <button
+          type="button"
+          (click)="game.toggleHelp()"
+          class="px-5 py-2 bg-[#8f7a66] hover:bg-[#9f8b77] text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-transform active:scale-95 shadow-sm"
+        >
+          {{ activeTab() === 'fa' ? 'متوجه شدم، بازگشت به بازی' : 'Got it, Resume Playing' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
