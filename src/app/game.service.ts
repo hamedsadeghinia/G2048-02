@@ -210,6 +210,7 @@ export class GameService {
   }
 
   private startGameLoop() {
+    if (typeof window === 'undefined') return;
     if (this.animFrameId !== null) return;
     this.lastFrameTime = performance.now();
     const loop = (timestamp: number) => {
@@ -224,6 +225,7 @@ export class GameService {
   }
 
   private stopGameLoop() {
+    if (typeof window === 'undefined') return;
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
